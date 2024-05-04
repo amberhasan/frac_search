@@ -2,14 +2,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +13,8 @@ public class FracSearch {
     static int power;
     static int fdegree;
     static int gdegree;
+
+    static List<Integer> fixedZeroDegrees;
     static boolean verbose;
     // static boolean outputPerms;
     // Arithmetic Tables
@@ -47,7 +42,7 @@ public class FracSearch {
         //gdegree = 2;
         //GF.initGF(prime, power);
         //verbose = true;
-        
+
         System.out.println(GF.irr+"\n");
         subtractionTable = fillSubtractionTable();
         divisionTable = fillDivisionTable();
@@ -56,8 +51,8 @@ public class FracSearch {
         gFGMapValues = getMinFGMapValues(gdegree);
         fBitMasks = createFBitMasks();
         gBitMasks = createGBitMasks();
-        pDividesG = gdegree % prime == 0;  
-      
+        pDividesG = gdegree % prime == 0;
+
         // Print FG-Map Values and Masks
         /*System.out.println("f(x) FG-Map Values");
         for(int key : fFGMapValues.keySet()) {
@@ -66,7 +61,7 @@ public class FracSearch {
         System.out.println("g(x) FG-Map Values");
         for(int key : gFGMapValues.keySet()) {
             System.out.println(key+": "+ gFGMapValues.get(key));
-        }  
+        }
         System.out.println("fBitMasks Masks: "+fBitMasks.size());
         for(boolean[] mask : fBitMasks) {
             System.out.println(Arrays.toString(mask));
@@ -77,10 +72,12 @@ public class FracSearch {
         }*/
 
         String outFileName = "frac_" + prime + "_" + power + "_" + fdegree + "_" + gdegree + ".txt";
+        fixNumeratorDegreesToZero();
+
         BufferedWriter outFile = new BufferedWriter(new FileWriter(outFileName));
         outFile.write(GF.irr+"\r\n");
         outFile.flush();
-        
+
         HashSet<String> foundFracPPs = new HashSet<>();
         count = 0;
         totalToCheck = totalToCheck();
@@ -111,12 +108,12 @@ public class FracSearch {
                     if(containsZero(gValues)) { // if g(x) produces a 0, skip it since we can't divide by zero
                         count += totalSkipped(fmask, gmask);
                         continue;
-                    }                    
+                    }
                     int[] f = createPolynomial(fmask);
                     int[] fMaskIndexes = listIndexes(fmask);
                     do {
                         count++;
-                        if(checkPerm(f, gValues) 
+                        if(checkPerm(f, gValues)
                                 && !foundFracPPs.contains(Arrays.toString(f) + " / " + Arrays.toString(g))
                                 && isOne(polyGCD(f, g))) {
                             HashMap<String, int[][]> equivalenceClass = getFGMaps(f, g);
@@ -129,7 +126,7 @@ public class FracSearch {
                             outFile.write(toWrite);
                             outFile.flush();
                             foundFracPPs.addAll(equivalenceClass.keySet());
-                            String output = Arrays.toString(f) + " / " + Arrays.toString(g);                     
+                            String output = Arrays.toString(f) + " / " + Arrays.toString(g);
                             while(output.length() < maxStringLength())
                                 output += " ";
                             if(verbose) {
@@ -143,7 +140,7 @@ public class FracSearch {
                         //update();
                     }
                     while(incrementPolynomial(f, fMaskIndexes, 0));
-                    
+
                 }
                 while(incrementPolynomial(g, gMaskIndexes, 1));
             }
@@ -156,27 +153,27 @@ public class FracSearch {
         System.out.println(df.format((float)(endTime-startTime)/60000) + " min elapsed");
         System.out.println(foundFracPPs.size() + " NFPPs Found");
     }
-    
+
     public static int add(int a, int b) { // a + b in GF
         return GF.addTable[a + b * GF.n];
     }
-    
+
     public static int subtract(int a, int b) { // a - b in GF
         return subtractionTable[a][b];
     }
-    
+
     public static int mult(int a, int b) { // a * b in GF
         return GF.mulTable[a + b * GF.n];
     }
-    
+
     public static int divide(int a, int b) { // a / b in GF
         return divisionTable[a][b];
     }
-    
+
     public static int power(int a, int b) { // a^b in GF
         return powerTable[a][b];
     }
-    
+
     public static int[][] fillSubtractionTable() {
         int[][] subtraction = new int[GF.n][GF.n];
         for(int a = 0; a < GF.n; a++) {
@@ -185,12 +182,12 @@ public class FracSearch {
                     if(GF.addTable[b*GF.n + i] == a) {
                          subtraction[a][b] = i;
                     }
-                }                
+                }
             }
         }
-        return subtraction;        
+        return subtraction;
     }
-    
+
     public static int[][] fillDivisionTable() {
         int[][] division = new int[GF.n][GF.n];
         for(int a = 0; a < GF.n; a++) {
@@ -202,7 +199,7 @@ public class FracSearch {
                     if(GF.mulTable[b*GF.n + i] == a) {
                          division[a][b] = i;
                     }
-                }                
+                }
             }
         }
         return division;
@@ -220,15 +217,15 @@ public class FracSearch {
         }
         return powers;
     }
-     
+
     public static int calcPower(int a, int b) { //a^b in GF
         if(b==0)
             return 1;
         if(b==1)
             return a;
         else
-            return mult(a, calcPower(a,b-1));        
-    }    
+            return mult(a, calcPower(a,b-1));
+    }
 
     public static int[] addPoly(int[] p1, int[] p2) {
         if(p1.length >= p2.length) {
@@ -243,8 +240,8 @@ public class FracSearch {
                 newP[newP.length-1-i] = add(p1[p1.length-1-i], p2[p2.length-1-i]);
             return newP;
         }
-    }   
-    
+    }
+
     public static int[] subtractPoly(int[] p1, int[] p2) { //subtract polynomials, p1 - p2
         // degree of p1 >= p2
         int[] newP = Arrays.copyOf(p1, p1.length);
@@ -261,7 +258,7 @@ public class FracSearch {
         if(i == newP.length)
             return new int[] {0};
         return Arrays.copyOfRange(newP, i, newP.length);
-    }    
+    }
 
     public static int[] multA(int[] p, int a) { //multipy polynomial p by a
         int[] pa = Arrays.copyOf(p, p.length);
@@ -269,21 +266,21 @@ public class FracSearch {
             pa[i]=mult(p[i],a);
         return pa;
     }
-    
+
     public static int[] multX(int[] p) { //multiply polynomial p by x
         int[] px = new int[p.length+1];
         px[px.length-1] = 0;
         System.arraycopy(p, 0, px, 0, p.length);
         return px;
     }
-    
+
     public static int[] divideA(int[] p, int a) { //divide polynomial p by coefficient a
         int[] pa = Arrays.copyOf(p, p.length);
         for(int i=0; i<pa.length; i++)
             pa[i]=divide(p[i],a);
-        return pa;       
+        return pa;
     }
-    
+
     public static int[] multPoly(int[] p1, int[] p2) { // multiply polynomials p1 and p2
         int[] result = {0};
         for(int i=0; i<p1.length; i++) {
@@ -298,33 +295,7 @@ public class FracSearch {
         }
         return result;
     }
-    
-    public static int[][] dividePoly(int[] a, int[] b) { // returns polynomial a / polynomial b, result[0] = quotient, result[1] = remainder
-        // Euclidean Division: https://en.wikipedia.org/wiki/Polynomial_greatest_common_divisor#Euclidean_division
-        int[] q = {0};
-        int[] r = Arrays.copyOf(a, a.length);
-        int d = b.length - 1;
-        if(d == 0) { // b is not a polynomial, do coefficient division
-            int[][] result = new int[2][];
-            result[0] = divideA(a, b[0]);
-            result[1] = new int[] {0};            
-            return result;
-        }
-        int c = b[0];
-        while(r.length-1 >= d) {
-            int[] s = new int[r.length - d];
-            Arrays.fill(s, 0);
-            s[0] = divide(r[0], c);
-            q = addPoly(q, s);
-            int[] sb = multPoly(s, b);
-            r = subtractPoly(r, sb);
-        }
-        int[][] result = new int[2][];
-        result[0] = q;
-        result[1] = r;
-        return result;     
-    }
-    
+
     public static int[] getRemainder(int[] a, int[] b) { // returns remainder of polynomial a / polynomial b
         // Euclidean Division: https://en.wikipedia.org/wiki/Polynomial_greatest_common_divisor#Euclidean_division
         int[] r = Arrays.copyOf(a, a.length);
@@ -342,7 +313,7 @@ public class FracSearch {
         }
         return r;
     }
-    
+
     public static int[] polyGCD(int[] a, int[] b) { // returns GCD of a and b
         //Euclid's Algorithm: https://en.wikipedia.org/wiki/Polynomial_greatest_common_divisor#Euclidean_division
         int[] rPrev = Arrays.copyOf(a, a.length);
@@ -356,11 +327,11 @@ public class FracSearch {
             return new int[] {1};
         return rPrev;
     }
-    
+
     public static boolean isOne(int[] p) {
         return p.length == 1 && p[0] == 1;
     }
-    
+
     public static int[] binomialToPower(int[] p1, int c, int n) { //p1 = (x+c), return (x+c)^n
         if(n == 1)
             return p1;
@@ -370,8 +341,8 @@ public class FracSearch {
             int[] result = addPoly(timesX, timesB);
             return binomialToPower(result, c, n-1);
         }
-    } 
-    
+    }
+
     public static int[] fOfXPlusB(int[] p, int b) { // returns f(x+b)
         int[] result = {p[p.length-1]}; //start with result as constant of p
         for(int i=p.length-2; i>=0; i--) {
@@ -381,8 +352,8 @@ public class FracSearch {
             result = addPoly(timesCoef, result);
         }
         return result;
-    }    
-    
+    }
+
     public static int evaluateX(int x, int[] polynomial) { // evaluate f(x)
         int degree = polynomial.length - 1;
         int sum = 0;
@@ -394,7 +365,7 @@ public class FracSearch {
         }
         return sum;
     }
-    
+
     public static int[] evaluatePolynomial(int[] polynomial) { // evaluate f(x) for all x in GF
         int[] result = new int[GF.n];
         for(int x=0; x<GF.n; x++) {
@@ -402,27 +373,7 @@ public class FracSearch {
         }
         return result;
     }
-    
-//    public static boolean incrementPolynomial(int[] polynomial, int stopIndex) { // stopIndex = -1 for all indexes, 0 if poly is monic, etc.
-//        int curIndex = polynomial.length - 1;
-//        while(incrementIndex(polynomial, curIndex)) {
-//            curIndex--;
-//            if(curIndex == stopIndex)
-//                return false;
-//        }
-//        return true;
-//    }
-//
-//    public static boolean incrementIndex(int[] polynomial, int index) { //return true if carries
-//        polynomial[index]++;
-//        if(polynomial[index] == GF.n) {
-//            polynomial[index] = 0;
-//            return true;
-//        }
-//        else
-//            return false;
-//    }
-    
+
     public static boolean containsZero(int[] array) {
         for(int i=0; i< array.length; i++) {
             if(array[i] == 0)
@@ -430,7 +381,7 @@ public class FracSearch {
         }
         return false;
     }
-    
+
     public static boolean checkPerm(int[] f, int[] gValues) { // check if f(x)/g(x) is a permutation fraction (pass g as values since we already calculated them)
         HashSet<Integer> values = new HashSet<>();
         for(int x=0; x<GF.n; x++) {
@@ -438,16 +389,7 @@ public class FracSearch {
             if(!values.add(divide(fValue, gValues[x]))) // add f(x)/g(x) to set, return false if it already exists (ie, not a perm)
                 return false;
         }
-        return true;       
-    }
-    
-    public static int[] calcPerm(int[] f, int[] gValues) {
-        int[] permutation = new int[GF.n];
-        for(int x=0; x<GF.n; x++) {
-            int fValue = evaluateX(x, f);
-            permutation[x] = divide(fValue, gValues[x]);
-        }
-        return permutation;
+        return true;
     }
 
     public static ArrayList<ArrayList<Integer>> getGOrbits() {
@@ -468,10 +410,10 @@ public class FracSearch {
                 field.removeAll(currentOrbit);
                 gOrbits.add(currentOrbit);
             }
-        }        
+        }
         return gOrbits;
     }
-    
+
     public static HashMap<Integer, ArrayList<Integer>> getMinFGMapValues(int degree) {
         ArrayList<ArrayList<Integer>> gOrbits = getGOrbits();
         HashMap<Integer, ArrayList<Integer>> indexElements = new HashMap<>();
@@ -479,7 +421,7 @@ public class FracSearch {
             ArrayList<Integer> field = new ArrayList<>();
             for(int j=0; j<GF.n; j++) {
                 field.add(j);
-            }  
+            }
             ArrayList<Integer> toAdd = new ArrayList<>();
             for(ArrayList<Integer> gOrbit : gOrbits) {
                 HashSet<Integer> fullOrbit = new HashSet<>();
@@ -501,10 +443,10 @@ public class FracSearch {
             }
             indexElements.put(i, toAdd);
             //System.out.println("printing "+toAdd);
-        }           
-        return indexElements;        
+        }
+        return indexElements;
     }
-    
+
     public static boolean[] createMask(BitSet bs, int degree) {
         boolean[] mask = new boolean[degree + 1];
         Arrays.fill(mask, false);
@@ -515,7 +457,7 @@ public class FracSearch {
         }
         return mask;
     }
-    
+
     public static ArrayList<boolean[]> createFBitMasks() {
         ArrayList<boolean[]> masks = new ArrayList<>();
         if(fdegree == 1) {
@@ -523,7 +465,7 @@ public class FracSearch {
             masks.add(mask);
             return masks;
         }
-        int numMasks = (int) Math.pow(2,fdegree-1); // eg. deg=5: [F X X X X F] 
+        int numMasks = (int) Math.pow(2,fdegree-1); // eg. deg=5: [F X X X X F]
         for(int x=0; x<numMasks; x++) {
             long[] curVal = {x};
             BitSet bs = BitSet.valueOf(curVal); // creates binary representation of x
@@ -532,7 +474,7 @@ public class FracSearch {
         }
         return masks;
     }
-    
+
     public static ArrayList<boolean[]> createGBitMasks() {
         ArrayList<boolean[]> masks = new ArrayList<>();
         if(gdegree == 1) {
@@ -544,11 +486,11 @@ public class FracSearch {
         if(gdegree % prime == 0 && prime == 2) {
             gapDegree = getGapDegree();
         }
-        int numMasks = (int) Math.pow(2,gdegree-1); // eg. deg=5: [F F X X X F] 
+        int numMasks = (int) Math.pow(2,gdegree-1); // eg. deg=5: [F F X X X F]
         for(int x=0; x<numMasks; x++) {
             long[] curVal = {x};
             BitSet bs = BitSet.valueOf(curVal); // creates binary representation of x
-        
+
             // Case 1: p does not divide g
             if(gdegree % prime != 0) {
                 if(bs.get(gdegree - 2) == false ) { // second coefficient fixed
@@ -557,7 +499,7 @@ public class FracSearch {
                     masks.add(mask);
                 }
             }
-            
+
             // Case 2: p divides g, p > 2
             else if(prime > 2) {
                 if(bs.get(gdegree - 2) == false || bs.get(gdegree - 3) == false) { // m-normalization
@@ -566,9 +508,9 @@ public class FracSearch {
                     masks.add(mask);
                 }
             }
-            
+
             // Case 3: p divides g, p = 2
-            else { 
+            else {
                 if(gapDegree == -1) { // gedgree is 2 less than a power of 2, i.e. no gap
                     boolean[] mask = createMask(bs, gdegree);
                     mask[mask.length-1] = true;
@@ -579,13 +521,13 @@ public class FracSearch {
                         boolean[] mask = createMask(bs, gdegree);
                         mask[mask.length-1] = true;
                         masks.add(mask);
-                    }                    
+                    }
                 }
             }
         }
         return masks;
     }
-    
+
     public static int getGapDegree() { // find start degree of gap defined by b-normalization
         if(((gdegree+2) & (gdegree+1)) == 0) // if fedgree is 2 less than a power of 2
             return -1; //no Gap
@@ -614,7 +556,7 @@ public class FracSearch {
                 smallestSize = gFGMapValues.get(x).size();
                 polynomial = 1;
             }
-        }   
+        }
         return new int[] {polynomial, smallestIndex};
     }
 
@@ -634,7 +576,7 @@ public class FracSearch {
         }
         return indexes;
     }
-    
+
     public static long totalToCheck() {
         long count = 0;
         for(boolean[] gMask : gBitMasks) {
@@ -660,13 +602,13 @@ public class FracSearch {
                     else {
                         curCount = curCount * (GF.n-1);
                     }
-                }                
+                }
                 count += curCount;
             }
         }
         return count;
     }
-    
+
     public static long totalSkipped(boolean[] fMask, boolean[] gMask) { // fractions we don't have to check because g(x) contains a 0
         long count = 0;
         long curCount = 1;
@@ -680,11 +622,11 @@ public class FracSearch {
             else { // else we are skipping GF.n-1 values for that index
                 curCount = curCount * (GF.n-1);
             }
-        }              
+        }
         count += curCount;
         return count;
     }
-    
+
     static int[] createPolynomial(boolean[] mask) {
         int[] poly = new int[mask.length];
         Arrays.fill(poly, 0);
@@ -696,7 +638,7 @@ public class FracSearch {
         }
         return poly;
     }
-    
+
     static boolean incrementPolynomial(int[] poly, int[] maskIndexes, int fg) { // fg: 0=f, 1=g
         if(maskIndexes.length == 0) // no indexes to increment
             return false;
@@ -734,11 +676,11 @@ public class FracSearch {
             }
         }
     }
-    
+
     static HashMap<String, int[][]> getFGMaps(int[] f, int[] g) {
         int[] curF = Arrays.copyOf(f, f.length);
         int[] curG = Arrays.copyOf(g, g.length);
-        String curFracString = Arrays.toString(f) + " / " + Arrays.toString(g);                        
+        String curFracString = Arrays.toString(f) + " / " + Arrays.toString(g);
         HashMap<String, int[][]> fMaps = new HashMap<>();
         //calculate fMaps
         while(!fMaps.containsKey(curFracString)) {
@@ -764,21 +706,21 @@ public class FracSearch {
         }
         return fgMaps;
     }
-    
+
     public static int[] fMap(int[] p) {
         int[] result = new int[p.length];
         for(int i=0; i<p.length; i++)
             result[i] = mult(p[i], i+1);
         return result;
     }
-    
+
     public static int[] gMap(int[] p) {
         int[] result = new int[p.length];
         for(int i=0; i<p.length; i++)
             result[i] = power(p[i], prime);
         return result;
     }
-    
+
     static HashMap<String, int[][]> getFofXPlusBMaps(HashMap<String, int[][]> fgMaps) {
         HashMap<String, int[][]>  fofxpbMaps = new HashMap<>();
         for(String key : fgMaps.keySet()) {
@@ -794,7 +736,7 @@ public class FracSearch {
                 fofxpbMaps.put(curFracString, new int[][] {hmapfofxpb, gofxpb});
             }
         }
-        return fofxpbMaps; 
+        return fofxpbMaps;
     }
 
     public static void update() {
@@ -802,10 +744,10 @@ public class FracSearch {
         DecimalFormat df = new DecimalFormat("##.##");
         float percent = (float)count / (float)totalToCheck;
         float totalMinutes = (float)numMinutes / (percent);
-        System.out.println(df.format(percent*100)+"% complete. "+ df.format(numMinutes) + " min elapsed. Estimated " 
+        System.out.println(df.format(percent*100)+"% complete. "+ df.format(numMinutes) + " min elapsed. Estimated "
                 + df.format(totalMinutes-numMinutes)+" min remaining, "+df.format(totalMinutes)+" min total.");
     }
-    
+
     public static int maxStringLength() {
         int length = 11; // "[1," + "] / [1," + "]"
         int digits = 3;
@@ -816,17 +758,17 @@ public class FracSearch {
         length += (fdegree + gdegree) * (digits+2);
         return length;
     }
-    
+
     public static void print(int[] array){
         System.out.println(Arrays.toString(array));
     }
-    
+
     public static void parseArgs(String[] args) {
         if(args.length < 4) {
             System.out.println("Usage: java FracSearch <prime> <power> <f-degree> <g-degree>");
             System.out.println("f-degree must be strictly > g-degree");
             System.out.println("options:");
-            System.out.println("     -v     verbose output of nFPPs");            
+            System.out.println("     -v     verbose output of nFPPs");
             System.exit(0);
         }
         //initialize variables
@@ -841,6 +783,10 @@ public class FracSearch {
             System.exit(0);
         }*/
         // check additional options
+        fixedZeroDegrees = new ArrayList<Integer>();
+        for (int i = 4; i < args.length; i++) { //paramters 4 + (0 index) are the degrees
+            fixedZeroDegrees.add(Integer.parseInt(args[i]));
+        }
         if(args.length > 4) {
             for(int x=4; x<args.length; x++) {
                 switch(args[x]) {
@@ -848,16 +794,56 @@ public class FracSearch {
                         verbose = true;
                         break;
                     default:
-                        System.out.println("Unrecognized option "+args[x]);
-                        System.exit(0);
+                        System.out.println("We are fixing some indicies.");
                 }
             }
-        }        
+        }
+        System.out.println("Here is the fixedZeroDegrees" + fixedZeroDegrees.toString());
     }
+    public static void fixNumeratorDegreesToZero() {
+        Iterator<boolean[]> itr = fBitMasks.iterator();
+        while (itr.hasNext()) {
+            boolean[] mask = itr.next();
+            boolean shouldRemove = false;
+
+            for (int zeroDegree : fixedZeroDegrees) {
+                int coefIndex = fdegree - zeroDegree; // Correctly calculate the index for the array
+                if (coefIndex < 0 || coefIndex >= mask.length) {
+                    continue; // Skip if the index is out of bounds
+                }
+                if (mask[coefIndex]) {
+                    mask[coefIndex] = false; // Instead of removing the mask, set the specific coefficient to false
+                }
+            }
+        }
+    }
+
+//    public static void fixNumeratorDegreesToZero() {
+//        Iterator<boolean[]> itr = fBitMasks.iterator();
+//        while (itr.hasNext()) {
+//            boolean[] mask = itr.next();
+//            boolean shouldRemove = false;
+//
+//            for (int zeroDegree : fixedZeroDegrees) {
+//                int coefIndex = fdegree - zeroDegree; // Adjust index for fdegree
+//                if (coefIndex < 0 || coefIndex >= mask.length) {
+//                    continue; // Skip if the index is out of bounds
+//                }
+//                if (mask[coefIndex]) {
+//                    shouldRemove = true;
+//                    break; // Break as soon as a violating degree is found
+//                }
+//            }
+//
+//            if (shouldRemove) {
+//                itr.remove(); // Remove the mask from the list if it violates the zero degree rule
+//            }
+//        }
+//    }
 }
 
-class GF 
-{    
+class GF
+{
     static Random rand = new Random(1);
 
     static int prime = 1;
