@@ -15,6 +15,10 @@ public class FracSearch {
     static int gdegree;
 
     static List<Integer> fixedZeroDegrees;
+    static List<Integer> fixedDegrees = new ArrayList<>();
+    static List<Integer> fixedIndexes = new ArrayList<>();
+    static List<boolean[]> masksToRemove = new ArrayList<>();
+
     static boolean verbose;
     // static boolean outputPerms;
     // Arithmetic Tables
@@ -74,6 +78,14 @@ public class FracSearch {
         String outFileName = "frac_" + prime + "_" + power + "_" + fdegree + "_" + gdegree + ".txt";
         fixNumeratorDegreesToZero();
 
+        StringBuffer totalFixedDegrees = new StringBuffer();
+        for(int i=0; i<fixedZeroDegrees.size(); i++){
+            totalFixedDegrees.append(fixedZeroDegrees.get(i) + "->0,");
+        }
+        for(int i=0; i<fixedDegrees.size(); i++){
+            totalFixedDegrees.append(fdegree-fixedDegrees.get(i) + "->" + fixedIndexes.get(i) + ",");
+        }
+        System.out.println("Here is totalFixed Degrees " + totalFixedDegrees);
         BufferedWriter outFile = new BufferedWriter(new FileWriter(outFileName));
         outFile.write(GF.irr+"\r\n");
         outFile.flush();
@@ -100,7 +112,7 @@ public class FracSearch {
                 }
                 curLockValueIndex = 1;  //skipping value 0 at index 0
                 //Create initial pp
-                int[] g = createPolynomial(gmask);
+                int[] g = createGPolynomial(gmask);
                 int[] gMaskIndexes = listIndexes(gmask);
                 //System.out.println(Arrays.toString(fmask) + " / " + Arrays.toString(gmask) + " " + lockIndex[0] + " " + lockIndex[1]);
                 do {
@@ -109,8 +121,8 @@ public class FracSearch {
                         count += totalSkipped(fmask, gmask);
                         continue;
                     }
-                    int[] f = createPolynomial(fmask);
-                    int[] fMaskIndexes = listIndexes(fmask);
+                    int[] f = createFPolynomial(fmask);
+                    int[] fMaskIndexes = listIndexesF(fmask);
                     do {
                         count++;
                         if(checkPerm(f, gValues)
@@ -144,6 +156,7 @@ public class FracSearch {
                 }
                 while(incrementPolynomial(g, gMaskIndexes, 1));
             }
+            fBitMasks.removeAll(masksToRemove);
         }
         outFile.close();
         updateThread.shutdownNow();
@@ -577,6 +590,25 @@ public class FracSearch {
         return indexes;
     }
 
+    public static int[] listIndexesF(boolean[] mask) {
+        int count = 0;
+        for(int i=0; i<mask.length; i++) {
+            if(mask[i])
+                count++;
+        }
+
+        int[] indexes = new int[count];
+        int curIndex = 0;
+        for(int i=mask.length-1; i>=0; i--) {
+            if(mask[i]) {
+                indexes[curIndex] = i;
+                curIndex++;
+            }
+        }
+        return indexes;
+    }
+
+
     public static long totalToCheck() {
         long count = 0;
         for(boolean[] gMask : gBitMasks) {
@@ -627,7 +659,32 @@ public class FracSearch {
         return count;
     }
 
-    static int[] createPolynomial(boolean[] mask) {
+    public static void fixNumeratorDegrees() {
+        Iterator<boolean[]> itr = fBitMasks.iterator();
+
+        while(itr.hasNext()) {
+            boolean[] mask = itr.next();
+            boolean shouldRemove = false;
+
+            for (int i = 0; i < fixedDegrees.size(); i++) { //each of these degrees have a + number fixed coefficient
+                int coefIndex = fixedDegrees.get(i); //if the degree with 0 has a 1 in the mask
+
+                if (mask[coefIndex]) {
+                    shouldRemove = true;
+                    break; // No need to check further, one match is enough to remove
+                }
+            }
+
+            if (shouldRemove) {
+                masksToRemove.add(mask); // Collect masks to be removed
+            }
+        }
+    }
+
+
+
+
+    static int[] createGPolynomial(boolean[] mask) {
         int[] poly = new int[mask.length];
         Arrays.fill(poly, 0);
         poly[0] = 1;
@@ -635,6 +692,21 @@ public class FracSearch {
             if(mask[x]) {
                 poly[x] = 1;
             }
+        }
+        return poly;
+    }
+    static int[] createFPolynomial(boolean[] mask) {
+        int[] poly = new int[mask.length];
+        Arrays.fill(poly, 0);
+        poly[0] = 1;
+        for(int x=0; x<mask.length; x++) {
+            if(mask[x]) {
+                poly[x] = 1;
+            }
+        }
+        for(int i=0; i<fixedDegrees.size(); i++){ //fix given degrees to given indicies
+            poly[fixedDegrees.get(i)] = fixedIndexes.get(i);
+            fixNumeratorDegrees();
         }
         return poly;
     }
@@ -784,8 +856,15 @@ public class FracSearch {
         }*/
         // check additional options
         fixedZeroDegrees = new ArrayList<Integer>();
-        for (int i = 4; i < args.length; i++) { //paramters 4 + (0 index) are the degrees
-            fixedZeroDegrees.add(Integer.parseInt(args[i]));
+
+        for (int i = 4; i+1 < args.length; i=i+2) {
+            if(Integer.parseInt((args[i+1])) == 0){ //if it's a 0 coefficient
+                fixedZeroDegrees.add(Integer.parseInt(args[i]));
+            }
+            else{
+                fixedDegrees.add(fdegree-Integer.parseInt(args[i]));
+                fixedIndexes.add(Integer.parseInt(args[i+1]));
+            }
         }
         if(args.length > 4) {
             for(int x=4; x<args.length; x++) {
@@ -817,29 +896,6 @@ public class FracSearch {
             }
         }
     }
-
-//    public static void fixNumeratorDegreesToZero() {
-//        Iterator<boolean[]> itr = fBitMasks.iterator();
-//        while (itr.hasNext()) {
-//            boolean[] mask = itr.next();
-//            boolean shouldRemove = false;
-//
-//            for (int zeroDegree : fixedZeroDegrees) {
-//                int coefIndex = fdegree - zeroDegree; // Adjust index for fdegree
-//                if (coefIndex < 0 || coefIndex >= mask.length) {
-//                    continue; // Skip if the index is out of bounds
-//                }
-//                if (mask[coefIndex]) {
-//                    shouldRemove = true;
-//                    break; // Break as soon as a violating degree is found
-//                }
-//            }
-//
-//            if (shouldRemove) {
-//                itr.remove(); // Remove the mask from the list if it violates the zero degree rule
-//            }
-//        }
-//    }
 }
 
 class GF
